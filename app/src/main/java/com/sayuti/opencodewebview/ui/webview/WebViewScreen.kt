@@ -159,171 +159,175 @@ fun WebViewScreen(
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+            modifier = Modifier.fillMaxSize()
         ) {
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = {
-                    isRefreshing = true
-                    errorState = null
-                    webViewRef?.reload()
-                },
-                modifier = Modifier.fillMaxSize()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
             ) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        isRefreshing = true
+                        errorState = null
+                        webViewRef?.reload()
+                    },
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
 
-                            // Configure CookieManager for persistent session storage
-                            val cookieManager = CookieManager.getInstance()
-                            cookieManager.setAcceptCookie(true)
-                            cookieManager.setAcceptThirdPartyCookies(this, true)
+                                // Configure CookieManager for persistent session storage
+                                val cookieManager = CookieManager.getInstance()
+                                cookieManager.setAcceptCookie(true)
+                                cookieManager.setAcceptThirdPartyCookies(this, true)
 
-                            // WebSettings configuration
-                            settings.apply {
-                                javaScriptEnabled = true
-                                domStorageEnabled = true
-                                cacheMode = WebSettings.LOAD_DEFAULT
-                                allowFileAccess = false
-                                allowContentAccess = false
-                            }
-
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onReceivedTitle(view: WebView?, title: String?) {
-                                    super.onReceivedTitle(view, title)
-                                    if (!title.isNullOrBlank()) {
-                                        pageTitle = title
-                                    }
+                                // WebSettings configuration
+                                settings.apply {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
+                                    cacheMode = WebSettings.LOAD_DEFAULT
+                                    allowFileAccess = false
+                                    allowContentAccess = false
                                 }
 
-                                override fun onShowFileChooser(
-                                    webView: WebView?,
-                                    filePathCallback: ValueCallback<Array<Uri>>?,
-                                    fileChooserParams: FileChooserParams?
-                                ): Boolean {
-                                    // Reset any previously pending callback
-                                    pendingFilePathCallback?.onReceiveValue(null)
-                                    pendingFilePathCallback = filePathCallback
-
-                                    val intent = try {
-                                        fileChooserParams?.createIntent()
-                                    } catch (e: Exception) {
-                                        null
+                                webChromeClient = object : WebChromeClient() {
+                                    override fun onReceivedTitle(view: WebView?, title: String?) {
+                                        super.onReceivedTitle(view, title)
+                                        if (!title.isNullOrBlank()) {
+                                            pageTitle = title
+                                        }
                                     }
 
-                                    val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                                        addCategory(Intent.CATEGORY_OPENABLE)
-                                        type = "*/*"
-                                    }
-
-                                    return try {
-                                        fileChooserLauncher.launch(finalIntent)
-                                        true
-                                    } catch (e: Exception) {
+                                    override fun onShowFileChooser(
+                                        webView: WebView?,
+                                        filePathCallback: ValueCallback<Array<Uri>>?,
+                                        fileChooserParams: FileChooserParams?
+                                    ): Boolean {
+                                        // Reset any previously pending callback
                                         pendingFilePathCallback?.onReceiveValue(null)
-                                        pendingFilePathCallback = null
-                                        false
-                                    }
-                                }
-                            }
+                                        pendingFilePathCallback = filePathCallback
 
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    isRefreshing = false
-                                    isLoading = false
-                                    canGoBack = view?.canGoBack() == true
-                                    if (!view?.title.isNullOrBlank()) {
-                                        pageTitle = view?.title ?: ""
-                                    }
-                                    CookieManager.getInstance().flush()
-                                }
+                                        val intent = try {
+                                            fileChooserParams?.createIntent()
+                                        } catch (e: Exception) {
+                                            null
+                                        }
 
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    isLoading = true
-                                    canGoBack = view?.canGoBack() == true
-                                }
+                                        val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                                            addCategory(Intent.CATEGORY_OPENABLE)
+                                            type = "*/*"
+                                        }
 
-                                override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                                    super.doUpdateVisitedHistory(view, url, isReload)
-                                    canGoBack = view?.canGoBack() == true
-                                }
-
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView?,
-                                    request: WebResourceRequest?
-                                ): Boolean {
-                                    val requestUrl = request?.url?.toString() ?: return false
-                                    return handleUrlOverride(requestUrl, baseUrl, ctx)
-                                }
-
-                                @Deprecated("Deprecated in Java")
-                                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                                    if (url == null) return false
-                                    return handleUrlOverride(url, baseUrl, ctx)
-                                }
-
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    error: WebResourceError?
-                                ) {
-                                    super.onReceivedError(view, request, error)
-                                    if (request?.isForMainFrame == true) {
-                                        isRefreshing = false
-                                        isLoading = false
-                                        val description = error?.description?.toString() ?: "Failed to load page"
-                                        errorState = WebViewError(
-                                            message = description,
-                                            statusCode = error?.errorCode,
-                                            isAuthError = false
-                                        )
-                                    }
-                                }
-
-                                override fun onReceivedHttpError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    errorResponse: WebResourceResponse?
-                                ) {
-                                    super.onReceivedHttpError(view, request, errorResponse)
-                                    if (request?.isForMainFrame == true) {
-                                        val statusCode = errorResponse?.statusCode ?: 0
-                                        if (statusCode == 401 || statusCode == 403) {
-                                            isRefreshing = false
-                                            isLoading = false
-                                            val message = when (statusCode) {
-                                                401 -> "Authentication required (HTTP 401). Please re-pair your server."
-                                                403 -> "Access forbidden (HTTP 403). Please re-pair your server."
-                                                else -> "HTTP Error $statusCode"
-                                            }
-                                            errorState = WebViewError(
-                                                message = message,
-                                                statusCode = statusCode,
-                                                isAuthError = true
-                                            )
+                                        return try {
+                                            fileChooserLauncher.launch(finalIntent)
+                                            true
+                                        } catch (e: Exception) {
+                                            pendingFilePathCallback?.onReceiveValue(null)
+                                            pendingFilePathCallback = null
+                                            false
                                         }
                                     }
                                 }
-                            }
 
-                            loadUrl(initialUrl)
-                            webViewRef = this
-                        }
-                    },
-                    update = { webView ->
-                        webViewRef = webView
-                        canGoBack = webView.canGoBack()
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                                webViewClient = object : WebViewClient() {
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                        super.onPageFinished(view, url)
+                                        isRefreshing = false
+                                        isLoading = false
+                                        canGoBack = view?.canGoBack() == true
+                                        if (!view?.title.isNullOrBlank()) {
+                                            pageTitle = view?.title ?: ""
+                                        }
+                                        CookieManager.getInstance().flush()
+                                    }
+
+                                    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                        super.onPageStarted(view, url, favicon)
+                                        isLoading = true
+                                        canGoBack = view?.canGoBack() == true
+                                    }
+
+                                    override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                                        super.doUpdateVisitedHistory(view, url, isReload)
+                                        canGoBack = view?.canGoBack() == true
+                                    }
+
+                                    override fun shouldOverrideUrlLoading(
+                                        view: WebView?,
+                                        request: WebResourceRequest?
+                                    ): Boolean {
+                                        val requestUrl = request?.url?.toString() ?: return false
+                                        return handleUrlOverride(requestUrl, baseUrl, ctx)
+                                    }
+
+                                    @Deprecated("Deprecated in Java")
+                                    override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                        if (url == null) return false
+                                        return handleUrlOverride(url, baseUrl, ctx)
+                                    }
+
+                                    override fun onReceivedError(
+                                        view: WebView?,
+                                        request: WebResourceRequest?,
+                                        error: WebResourceError?
+                                    ) {
+                                        super.onReceivedError(view, request, error)
+                                        if (request?.isForMainFrame == true) {
+                                            isRefreshing = false
+                                            isLoading = false
+                                            val description = error?.description?.toString() ?: "Failed to load page"
+                                            errorState = WebViewError(
+                                                message = description,
+                                                statusCode = error?.errorCode,
+                                                isAuthError = false
+                                            )
+                                        }
+                                    }
+
+                                    override fun onReceivedHttpError(
+                                        view: WebView?,
+                                        request: WebResourceRequest?,
+                                        errorResponse: WebResourceResponse?
+                                    ) {
+                                        super.onReceivedHttpError(view, request, errorResponse)
+                                        if (request?.isForMainFrame == true) {
+                                            val statusCode = errorResponse?.statusCode ?: 0
+                                            if (statusCode == 401 || statusCode == 403) {
+                                                isRefreshing = false
+                                                isLoading = false
+                                                val message = when (statusCode) {
+                                                    401 -> "Authentication required (HTTP 401). Please re-pair your server."
+                                                    403 -> "Access forbidden (HTTP 403). Please re-pair your server."
+                                                    else -> "HTTP Error $statusCode"
+                                                }
+                                                errorState = WebViewError(
+                                                    message = message,
+                                                    statusCode = statusCode,
+                                                    isAuthError = true
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                loadUrl(initialUrl)
+                                webViewRef = this
+                            }
+                        },
+                        update = { webView ->
+                            webViewRef = webView
+                            canGoBack = webView.canGoBack()
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
             val handleChangeServer = {
@@ -338,14 +342,6 @@ fun WebViewScreen(
                     Toast.makeText(toastContext, "Cache berhasil dibersihkan", Toast.LENGTH_SHORT).show()
                 }
                 Unit
-            }
-
-            if (isLoading) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                )
             }
 
             // Error Overlay Screen
@@ -407,6 +403,14 @@ fun WebViewScreen(
                         )
                     }
                 }
+            }
+
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                )
             }
         }
     }
