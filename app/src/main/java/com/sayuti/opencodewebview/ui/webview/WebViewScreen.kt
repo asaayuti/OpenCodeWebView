@@ -10,6 +10,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.Button
@@ -187,6 +189,7 @@ fun WebViewScreen(
                             settings.apply {
                                 javaScriptEnabled = true
                                 domStorageEnabled = true
+                                cacheMode = WebSettings.LOAD_DEFAULT
                                 allowFileAccess = false
                                 allowContentAccess = false
                             }
@@ -324,8 +327,17 @@ fun WebViewScreen(
             }
 
             val handleChangeServer = {
-                clearWebViewData()
+                clearWebViewData(webViewRef)
                 onChangeServer()
+            }
+
+            val handleClearCache = {
+                webViewRef?.let { wv ->
+                    wv.clearCache(true)
+                    WebStorage.getInstance().deleteAllData()
+                    Toast.makeText(toastContext, "Cache berhasil dibersihkan", Toast.LENGTH_SHORT).show()
+                }
+                Unit
             }
 
             if (isLoading) {
@@ -379,6 +391,7 @@ fun WebViewScreen(
                     ) {
                         WebViewMenuContent(
                             onChangeServer = handleChangeServer,
+                            onClearCache = handleClearCache,
                             onOpenGitHub = {
                                 try {
                                     val intent = Intent(
@@ -402,6 +415,7 @@ fun WebViewScreen(
 @Composable
 private fun WebViewMenuContent(
     onChangeServer: () -> Unit,
+    onClearCache: () -> Unit,
     onOpenGitHub: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -416,6 +430,16 @@ private fun WebViewMenuContent(
         }
     )
     DropdownMenuItem(
+        text = { Text("Clear cache") },
+        leadingIcon = {
+            Icon(Icons.Rounded.DeleteOutline, contentDescription = null)
+        },
+        onClick = {
+            onDismiss()
+            onClearCache()
+        }
+    )
+    DropdownMenuItem(
         text = { Text("GitHub") },
         leadingIcon = {
             Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null)
@@ -427,12 +451,14 @@ private fun WebViewMenuContent(
     )
 }
 
-private fun clearWebViewData() {
+private fun clearWebViewData(webView: WebView? = null) {
     try {
         val cookieManager = CookieManager.getInstance()
         cookieManager.removeAllCookies(null)
         cookieManager.flush()
         WebStorage.getInstance().deleteAllData()
+        webView?.clearCache(true)
+        webView?.clearHistory()
     } catch (e: Exception) {
         OpenCodeUtils.logDebug(OpenCodeUtils.TAG, "Failed to clear web view data: ${e.message}")
     }
