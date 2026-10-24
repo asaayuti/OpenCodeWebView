@@ -49,3 +49,12 @@ To run instrumentation tests:
 ./gradlew connectedAndroidTest
 ```
 
+---
+
+## CI/CD & GitHub Releases
+
+The project includes a GitHub Actions workflow ([release.yml](.github/workflows/release.yml)) that automatically builds both Debug and Release APKs and publishes them as a GitHub Release whenever a new version tag (e.g. `v1.0.0`) is pushed.
+
+You can also trigger builds manually via the **Actions** tab in GitHub using **Workflow Dispatch**.
+
+
