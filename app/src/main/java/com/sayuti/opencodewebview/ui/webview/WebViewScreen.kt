@@ -11,6 +11,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -68,14 +70,19 @@ fun WebViewScreen(
     initialUrl: String,
     baseUrl: String,
     onChangeServer: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    doubleBackToExitEnabled: Boolean = true
 ) {
+    val context = LocalContext.current
     var isRefreshing by remember { mutableStateOf(false) }
     var errorState by remember { mutableStateOf<WebViewError?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     var pageTitle by remember { mutableStateOf("") }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var canGoBack by remember { mutableStateOf(false) }
     var pendingFilePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+    var backPressedTime by remember { mutableStateOf(0L) }
+    val toastContext = context.applicationContext
 
     // File Chooser Launcher
     val fileChooserLauncher = rememberLauncherForActivityResult(
@@ -100,15 +107,26 @@ fun WebViewScreen(
     }
 
     // Back Button Handler
-    val canGoBack = webViewRef?.canGoBack() == true
-    BackHandler(enabled = errorState != null || canGoBack) {
+    BackHandler(enabled = true) {
         if (errorState != null) {
             errorState = null
-            if (canGoBack) {
+            if (webViewRef?.canGoBack() == true) {
                 webViewRef?.goBack()
+                canGoBack = webViewRef?.canGoBack() == true
             }
-        } else if (canGoBack) {
+        } else if (webViewRef?.canGoBack() == true) {
             webViewRef?.goBack()
+            canGoBack = webViewRef?.canGoBack() == true
+        } else if (doubleBackToExitEnabled) {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - backPressedTime < 2000L) {
+                (context as? Activity)?.finish()
+            } else {
+                backPressedTime = currentTime
+                Toast.makeText(toastContext, "Tekan sekali lagi untuk keluar", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            (context as? Activity)?.finish()
         }
     }
 
@@ -188,9 +206,20 @@ fun WebViewScreen(
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
                                     isRefreshing = false
+                                    canGoBack = view?.canGoBack() == true
                                     if (!view?.title.isNullOrBlank()) {
                                         pageTitle = view?.title ?: ""
                                     }
+                                }
+
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    super.onPageStarted(view, url, favicon)
+                                    canGoBack = view?.canGoBack() == true
+                                }
+
+                                override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                                    super.doUpdateVisitedHistory(view, url, isReload)
+                                    canGoBack = view?.canGoBack() == true
                                 }
 
                                 override fun shouldOverrideUrlLoading(
@@ -255,6 +284,7 @@ fun WebViewScreen(
                     },
                     update = { webView ->
                         webViewRef = webView
+                        canGoBack = webView.canGoBack()
                     },
                     modifier = Modifier.fillMaxSize()
                 )
