@@ -49,12 +49,3 @@ To run instrumentation tests:
 ./gradlew connectedAndroidTest
 ```
 
----
-
-## Configuring Authentication Path
-
-The authentication connection path template is defined as a constant in `OpenCodeUtils.kt`. To change or customize the auth path template:
-
-1. Open [OpenCodeUtils.kt](file:///home/sayuti/AndroidStudioProjects/OpenCodeWebView/app/src/main/java/com/sayuti/opencodewebview/util/OpenCodeUtils.kt).
-2. Locate the `AUTH_CONNECT_PATH_TEMPLATE` constant.
-3. Modify the template string as needed for your server setup.
