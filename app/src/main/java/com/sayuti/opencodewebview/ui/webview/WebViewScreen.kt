@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -333,6 +334,17 @@ fun WebViewScreen(
                     ) {
                         WebViewMenuContent(
                             onChangeServer = onChangeServer,
+                            onOpenGitHub = {
+                                try {
+                                    val intent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://github.com/asaayuti/OpenCodeWebView")
+                                    )
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    OpenCodeUtils.logDebug(OpenCodeUtils.TAG, "Failed to open GitHub: ${e.message}")
+                                }
+                            },
                             onDismiss = { menuExpanded = false }
                         )
                     }
@@ -345,6 +357,7 @@ fun WebViewScreen(
 @Composable
 private fun WebViewMenuContent(
     onChangeServer: () -> Unit,
+    onOpenGitHub: () -> Unit,
     onDismiss: () -> Unit
 ) {
     DropdownMenuItem(
@@ -355,6 +368,16 @@ private fun WebViewMenuContent(
         onClick = {
             onDismiss()
             onChangeServer()
+        }
+    )
+    DropdownMenuItem(
+        text = { Text("GitHub") },
+        leadingIcon = {
+            Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null)
+        },
+        onClick = {
+            onDismiss()
+            onOpenGitHub()
         }
     )
 }
