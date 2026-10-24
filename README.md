@@ -4,6 +4,14 @@ Open Code WebView is an Android application designed to seamlessly connect and i
 
 ## Pairing with an OpenCode v2 Server
 
+### Pairing Methods (Choose one):
+- **Method 1**: Run in terminal:
+  ```bash
+  opencode pair --remote
+  ```
+- **Method 2**: Open OpenCode Desktop and click:
+  **Home -> Settings -> Pairing -> Pair device**
+
 You can connect to your OpenCode v2 server using two methods:
 1. **QR Code Scanner**: Tap the scan button to use Google Play Services Code Scanner to instantly scan the pairing QR code provided by your OpenCode v2 server.
 2. **Manual Input**: Paste the pair link or configuration JSON directly into the connection input field.

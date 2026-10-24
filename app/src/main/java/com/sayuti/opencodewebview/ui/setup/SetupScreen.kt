@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -182,6 +183,57 @@ fun SetupScreenContent(
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+
+                // Pairing Guide Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Pairing Methods",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Text(
+                            text = "Choose one of the following methods:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+
+                        Text(
+                            text = "• Method 1: Run in terminal\n    opencode pair --remote",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = "• Method 2: Open OpenCode Desktop and click\n    Home -> Settings -> Pairing -> Pair device",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
