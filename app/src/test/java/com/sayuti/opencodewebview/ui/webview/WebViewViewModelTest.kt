@@ -56,4 +56,21 @@ class WebViewViewModelTest {
 
         assertNull(repository.baseUrlFlow.first())
     }
+
+    @Test
+    fun testInitialLoadingStateAndBaseUrlEmission() = testScope.runTest {
+        val testFile = tmpFolder.newFile("test_loading_prefs.preferences_pb")
+        val testDataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+            scope = testScope,
+            produceFile = { testFile }
+        )
+        val repository = ServerPreferencesRepository.createForTest(testDataStore)
+        repository.saveBaseUrl("https://test.com")
+
+        val viewModel = WebViewViewModel(repository)
+        advanceUntilIdle()
+
+        org.junit.Assert.assertFalse(viewModel.isLoading.value)
+        org.junit.Assert.assertEquals("https://test.com", viewModel.baseUrl.value)
+    }
 }

@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -30,37 +31,47 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             OpenCodeWebViewTheme {
-                val baseUrl by repository.baseUrlFlow.collectAsStateWithLifecycle(initialValue = null)
-                var currentPairUrl by rememberSaveable { mutableStateOf<String?>(null) }
-
                 val webViewViewModel: WebViewViewModel = viewModel(
                     factory = WebViewViewModel.Factory(repository)
                 )
+                val baseUrl by webViewViewModel.baseUrl.collectAsStateWithLifecycle()
+                val isLoading by webViewViewModel.isLoading.collectAsStateWithLifecycle()
+                var currentPairUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    if (baseUrl.isNullOrBlank() && currentPairUrl == null) {
-                        val setupViewModel: SetupViewModel = viewModel(
-                            factory = SetupViewModel.Factory(repository)
-                        )
-                        SetupScreen(
-                            viewModel = setupViewModel,
-                            onPairSuccess = { pairUrl, _ ->
-                                currentPairUrl = pairUrl
-                            },
-                            modifier = Modifier.padding(innerPadding)
-                        )
-                    } else {
-                        val targetUrl = currentPairUrl ?: baseUrl ?: ""
-                        val effectiveBaseUrl = baseUrl ?: targetUrl
-                        WebViewScreen(
-                            initialUrl = targetUrl,
-                            baseUrl = effectiveBaseUrl,
-                            onChangeServer = {
-                                currentPairUrl = null
-                                webViewViewModel.changeServer()
-                            },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+                    when {
+                        isLoading -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding)
+                            )
+                        }
+                        baseUrl.isNullOrBlank() && currentPairUrl == null -> {
+                            val setupViewModel: SetupViewModel = viewModel(
+                                factory = SetupViewModel.Factory(repository)
+                            )
+                            SetupScreen(
+                                viewModel = setupViewModel,
+                                onPairSuccess = { pairUrl, _ ->
+                                    currentPairUrl = pairUrl
+                                },
+                                modifier = Modifier.padding(innerPadding)
+                            )
+                        }
+                        else -> {
+                            val targetUrl = currentPairUrl ?: baseUrl ?: ""
+                            val effectiveBaseUrl = baseUrl ?: targetUrl
+                            WebViewScreen(
+                                initialUrl = targetUrl,
+                                baseUrl = effectiveBaseUrl,
+                                onChangeServer = {
+                                    currentPairUrl = null
+                                    webViewViewModel.changeServer()
+                                },
+                                modifier = Modifier.padding(innerPadding)
+                            )
+                        }
                     }
                 }
             }
