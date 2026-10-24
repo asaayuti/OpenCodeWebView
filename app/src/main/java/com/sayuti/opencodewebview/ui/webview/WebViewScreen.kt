@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +39,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +55,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -133,77 +136,12 @@ fun WebViewScreen(
     }
 
     Scaffold(
-        topBar = {
-            val hostTitle = Uri.parse(baseUrl).host ?: "OpenCode"
-            val displayTitle = pageTitle.ifBlank { hostTitle }
-
-            TopAppBar(
-                title = {
-                    Text(
-                        text = displayTitle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
-                actions = {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Menu options"
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Keep screen on") },
-                            trailingIcon = {
-                                Switch(
-                                    checked = keepScreenOn,
-                                    onCheckedChange = null
-                                )
-                            },
-                            onClick = {
-                                keepScreenOn = !keepScreenOn
-                            }
-                        )
-
-                        HorizontalDivider()
-
-                        DropdownMenuItem(
-                            text = { Text("Change server") },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Dns, contentDescription = null)
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onChangeServer()
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Log out") },
-                            leadingIcon = {
-                                Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null)
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onLogout()
-                            }
-                        )
-                    }
-                }
-            )
-        },
         modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
+    ) { _ ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(PaddingValues(0.dp))
         ) {
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -367,8 +305,87 @@ fun WebViewScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+
+            // Floating menu button (always present in fullscreen mode)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                Box {
+                    FloatingActionButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.size(44.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Menu options"
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        WebViewMenuContent(
+                            keepScreenOn = keepScreenOn,
+                            onToggleKeepScreenOn = { keepScreenOn = !keepScreenOn },
+                            onChangeServer = onChangeServer,
+                            onLogout = onLogout,
+                            onDismiss = { menuExpanded = false }
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun WebViewMenuContent(
+    keepScreenOn: Boolean,
+    onToggleKeepScreenOn: () -> Unit,
+    onChangeServer: () -> Unit,
+    onLogout: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { Text("Keep screen on") },
+        trailingIcon = {
+            Switch(
+                checked = keepScreenOn,
+                onCheckedChange = null
+            )
+        },
+        onClick = onToggleKeepScreenOn
+    )
+
+    HorizontalDivider()
+
+    DropdownMenuItem(
+        text = { Text("Change server") },
+        leadingIcon = {
+            Icon(Icons.Rounded.Dns, contentDescription = null)
+        },
+        onClick = {
+            onDismiss()
+            onChangeServer()
+        }
+    )
+
+    DropdownMenuItem(
+        text = { Text("Log out") },
+        leadingIcon = {
+            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null)
+        },
+        onClick = {
+            onDismiss()
+            onLogout()
+        }
+    )
 }
 
 private fun handleUrlOverride(url: String, baseUrl: String, context: android.content.Context): Boolean {
