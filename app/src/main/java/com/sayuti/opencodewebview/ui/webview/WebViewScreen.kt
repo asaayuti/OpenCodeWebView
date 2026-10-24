@@ -42,6 +42,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -81,6 +82,7 @@ fun WebViewScreen(
 ) {
     val context = LocalContext.current
     var isRefreshing by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     var errorState by remember { mutableStateOf<WebViewError?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     var pageTitle by remember { mutableStateOf("") }
@@ -232,6 +234,7 @@ fun WebViewScreen(
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
                                     isRefreshing = false
+                                    isLoading = false
                                     canGoBack = view?.canGoBack() == true
                                     if (!view?.title.isNullOrBlank()) {
                                         pageTitle = view?.title ?: ""
@@ -241,6 +244,7 @@ fun WebViewScreen(
 
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                     super.onPageStarted(view, url, favicon)
+                                    isLoading = true
                                     canGoBack = view?.canGoBack() == true
                                 }
 
@@ -271,6 +275,7 @@ fun WebViewScreen(
                                     super.onReceivedError(view, request, error)
                                     if (request?.isForMainFrame == true) {
                                         isRefreshing = false
+                                        isLoading = false
                                         val description = error?.description?.toString() ?: "Failed to load page"
                                         errorState = WebViewError(
                                             message = description,
@@ -290,6 +295,7 @@ fun WebViewScreen(
                                         val statusCode = errorResponse?.statusCode ?: 0
                                         if (statusCode == 401 || statusCode == 403) {
                                             isRefreshing = false
+                                            isLoading = false
                                             val message = when (statusCode) {
                                                 401 -> "Authentication required (HTTP 401). Please re-pair your server."
                                                 403 -> "Access forbidden (HTTP 403). Please re-pair your server."
@@ -320,6 +326,14 @@ fun WebViewScreen(
             val handleChangeServer = {
                 clearWebViewData()
                 onChangeServer()
+            }
+
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                )
             }
 
             // Error Overlay Screen
