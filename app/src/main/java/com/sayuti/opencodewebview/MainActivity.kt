@@ -59,10 +59,6 @@ class MainActivity : ComponentActivity() {
                                 currentPairUrl = null
                                 webViewViewModel.changeServer()
                             },
-                            onLogout = {
-                                currentPairUrl = null
-                                webViewViewModel.logout()
-                            },
                             modifier = Modifier.padding(innerPadding)
                         )
                     }

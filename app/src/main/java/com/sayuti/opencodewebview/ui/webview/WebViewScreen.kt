@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.view.ViewGroup
-import android.webkit.CookieManager
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -28,7 +27,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -70,7 +68,6 @@ fun WebViewScreen(
     initialUrl: String,
     baseUrl: String,
     onChangeServer: () -> Unit,
-    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isRefreshing by remember { mutableStateOf(false) }
@@ -148,11 +145,6 @@ fun WebViewScreen(
                                 allowContentAccess = false
                             }
 
-                            // CookieManager configuration
-                            val cookieManager = CookieManager.getInstance()
-                            cookieManager.setAcceptCookie(true)
-                            cookieManager.setAcceptThirdPartyCookies(this, true)
-
                             webChromeClient = object : WebChromeClient() {
                                 override fun onReceivedTitle(view: WebView?, title: String?) {
                                     super.onReceivedTitle(view, title)
@@ -195,7 +187,6 @@ fun WebViewScreen(
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
-                                    CookieManager.getInstance().flush()
                                     isRefreshing = false
                                     if (!view?.title.isNullOrBlank()) {
                                         pageTitle = view?.title ?: ""
@@ -280,7 +271,7 @@ fun WebViewScreen(
                     },
                     onRePair = {
                         errorState = null
-                        onLogout()
+                        onChangeServer()
                     },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -312,7 +303,6 @@ fun WebViewScreen(
                     ) {
                         WebViewMenuContent(
                             onChangeServer = onChangeServer,
-                            onLogout = onLogout,
                             onDismiss = { menuExpanded = false }
                         )
                     }
@@ -325,7 +315,6 @@ fun WebViewScreen(
 @Composable
 private fun WebViewMenuContent(
     onChangeServer: () -> Unit,
-    onLogout: () -> Unit,
     onDismiss: () -> Unit
 ) {
     DropdownMenuItem(
@@ -336,17 +325,6 @@ private fun WebViewMenuContent(
         onClick = {
             onDismiss()
             onChangeServer()
-        }
-    )
-
-    DropdownMenuItem(
-        text = { Text("Log out") },
-        leadingIcon = {
-            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null)
-        },
-        onClick = {
-            onDismiss()
-            onLogout()
         }
     )
 }
