@@ -189,6 +189,41 @@ fun SetupScreenContent(
                     }
                 }
 
+                // QR Scan Section
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Quick Connect via QR Code",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = onScanQrClicked,
+                            enabled = !uiState.isLoading,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.QrCodeScanner,
+                                contentDescription = "Scan QR Code"
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Scan QR Code")
+                        }
+                    }
+                }
+
                 // Pairing Guide Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -237,41 +272,6 @@ fun SetupScreenContent(
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                    }
-                }
-
-                // QR Scan Section
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Quick Connect via QR Code",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = onScanQrClicked,
-                            enabled = !uiState.isLoading,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.QrCodeScanner,
-                                contentDescription = "Scan QR Code"
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Scan QR Code")
-                        }
                     }
                 }
 
