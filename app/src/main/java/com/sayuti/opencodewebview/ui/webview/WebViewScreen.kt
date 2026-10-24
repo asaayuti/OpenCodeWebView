@@ -4,11 +4,13 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -48,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +64,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 import com.sayuti.opencodewebview.util.OpenCodeUtils
 import com.sayuti.opencodewebview.util.WebViewUrlUtil
@@ -84,6 +90,21 @@ fun WebViewScreen(
     var pendingFilePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
     var backPressedTime by remember { mutableStateOf(0L) }
     val toastContext = context.applicationContext
+
+    // Ensure cookies are flushed to disk on lifecycle events (e.g. app paused or backgrounded)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                CookieManager.getInstance().flush()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            CookieManager.getInstance().flush()
+        }
+    }
 
     // File Chooser Launcher
     val fileChooserLauncher = rememberLauncherForActivityResult(
@@ -156,6 +177,11 @@ fun WebViewScreen(
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
 
+                            // Configure CookieManager for persistent session storage
+                            val cookieManager = CookieManager.getInstance()
+                            cookieManager.setAcceptCookie(true)
+                            cookieManager.setAcceptThirdPartyCookies(this, true)
+
                             // WebSettings configuration
                             settings.apply {
                                 javaScriptEnabled = true
@@ -211,6 +237,7 @@ fun WebViewScreen(
                                     if (!view?.title.isNullOrBlank()) {
                                         pageTitle = view?.title ?: ""
                                     }
+                                    CookieManager.getInstance().flush()
                                 }
 
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
@@ -291,6 +318,11 @@ fun WebViewScreen(
                 )
             }
 
+            val handleChangeServer = {
+                clearWebViewData()
+                onChangeServer()
+            }
+
             // Error Overlay Screen
             errorState?.let { currentError ->
                 ErrorScreenOverlay(
@@ -302,7 +334,7 @@ fun WebViewScreen(
                     },
                     onRePair = {
                         errorState = null
-                        onChangeServer()
+                        handleChangeServer()
                     },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -333,7 +365,7 @@ fun WebViewScreen(
                         onDismissRequest = { menuExpanded = false }
                     ) {
                         WebViewMenuContent(
-                            onChangeServer = onChangeServer,
+                            onChangeServer = handleChangeServer,
                             onOpenGitHub = {
                                 try {
                                     val intent = Intent(
@@ -380,6 +412,17 @@ private fun WebViewMenuContent(
             onOpenGitHub()
         }
     )
+}
+
+private fun clearWebViewData() {
+    try {
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.removeAllCookies(null)
+        cookieManager.flush()
+        WebStorage.getInstance().deleteAllData()
+    } catch (e: Exception) {
+        OpenCodeUtils.logDebug(OpenCodeUtils.TAG, "Failed to clear web view data: ${e.message}")
+    }
 }
 
 private fun handleUrlOverride(url: String, baseUrl: String, context: android.content.Context): Boolean {
