@@ -19,8 +19,6 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
-import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,6 +60,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
@@ -72,6 +72,18 @@ import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 import com.sayuti.opencodewebview.util.OpenCodeUtils
 import com.sayuti.opencodewebview.util.WebViewUrlUtil
 
+/**
+ * A Composable screen that hosts a fully-featured [WebView] with support for JavaScript,
+ * DOM storage, file choosing, camera/audio permissions, fullscreen video/HTML5 media,
+ * back button handling, offline/network monitoring, and authentication error handling.
+ *
+ * @param initialUrl The initial URL to load in the WebView.
+ * @param baseUrl The base URL used for validating whether navigation stays within the WebView or opens externally.
+ * @param onChangeServer Callback invoked when the user requests re-pairing or server reconfiguration.
+ * @param modifier Optional [Modifier] to be applied to the layout.
+ * @param doubleBackToExitEnabled Whether pressing back twice within 2 seconds exits the activity. Defaults to true.
+ * @param webViewViewModel Optional custom [WebViewViewModel] instance. If null, a default instance is created.
+ */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun WebViewScreen(
@@ -560,6 +572,11 @@ fun WebViewScreen(
     }
 }
 
+/**
+ * Clears all WebView session data including cookies, local web storage, cache, and navigation history.
+ *
+ * @param webView The [WebView] instance to clear cache and history from, or null if only storage/cookies need clearing.
+ */
 private fun clearWebViewData(webView: WebView? = null) {
     try {
         val cookieManager = CookieManager.getInstance()
@@ -573,6 +590,15 @@ private fun clearWebViewData(webView: WebView? = null) {
     }
 }
 
+/**
+ * Determines whether a requested URL should be loaded internally within the WebView
+ * or opened externally in the system browser based on whether it matches the allowed [baseUrl].
+ *
+ * @param url The target URL requested for loading.
+ * @param baseUrl The allowed base URL for internal webview navigation.
+ * @param context The [android.content.Context] used to launch external browser intents.
+ * @return true if the URL was handled externally (or overridden), false to allow WebView to load it.
+ */
 private fun handleUrlOverride(url: String, baseUrl: String, context: android.content.Context): Boolean {
     if (WebViewUrlUtil.isUrlAllowedInWebView(url, baseUrl)) {
         return false // Allow WebView to load URL internally
@@ -589,6 +615,14 @@ private fun handleUrlOverride(url: String, baseUrl: String, context: android.con
     }
 }
 
+/**
+ * A Composable overlay screen displayed when an error (such as network loss, HTTP 401/403, or page load failure) occurs.
+ *
+ * @param error The [WebViewError] object containing error details, messages, and state flags.
+ * @param onRetry Callback invoked when the user clicks the Retry button.
+ * @param onRePair Callback invoked when the user clicks the Re-pair button (for authentication errors).
+ * @param modifier Optional [Modifier] to be applied to the overlay layout.
+ */
 @Composable
 fun ErrorScreenOverlay(
     error: WebViewError,

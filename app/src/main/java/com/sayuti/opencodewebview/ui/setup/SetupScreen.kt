@@ -1,3 +1,10 @@
+/**
+ * SetupScreen.kt
+ *
+ * This file contains the composable UI implementation for the server pairing and setup flow
+ * in OpenCodeWebView. It provides interfaces for QR code scanning via Google Play Services (ML Kit),
+ * manual URL/JSON pairing input, paste-from-clipboard functionality, and interactive user pairing guides.
+ */
 package com.sayuti.opencodewebview.ui.setup
 
 import android.content.Context
@@ -6,15 +13,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,12 +54,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -63,7 +69,18 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
+import kotlinx.coroutines.launch
 
+/**
+ * Stateful wrapper composable for [SetupScreenContent].
+ *
+ * Collects UI state from [SetupViewModel], manages error snackbars via [LaunchedEffect],
+ * and coordinates connection requests and QR code scanning interactions.
+ *
+ * @param viewModel The [SetupViewModel] providing state and handling business logic.
+ * @param onPairSuccess Callback invoked upon successful pairing, supplying the pair URL and base URL.
+ * @param modifier Optional [Modifier] for configuring layout behavior.
+ */
 @Composable
 fun SetupScreen(
     viewModel: SetupViewModel,
@@ -104,6 +121,23 @@ fun SetupScreen(
     )
 }
 
+/**
+ * Stateless composable displaying the primary UI for server connection and setup.
+ *
+ * Features a scrollable layout with:
+ * - A hero header introducing server connection.
+ * - Quick connect via GMS barcode QR scanner.
+ * - Pairing guide instructions for terminal and desktop clients.
+ * - Manual input text field supporting clipboard paste and clear actions.
+ * - Loading overlay during active connection attempts.
+ *
+ * @param uiState Current [SetupUiState] containing input text, loading state, and error messages.
+ * @param snackbarHostState [SnackbarHostState] for displaying error or notification messages.
+ * @param onInputTextChanged Callback invoked when manual pairing text changes.
+ * @param onConnectClicked Callback invoked when manual connection is submitted.
+ * @param onScanQrClicked Callback invoked when the scan QR code button is clicked.
+ * @param modifier Optional [Modifier] for configuring layout behavior.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScreenContent(
@@ -384,6 +418,17 @@ fun SetupScreenContent(
     }
 }
 
+/**
+ * Initiates the Google Play Services (GMS) Barcode Scanner for QR code pairing.
+ *
+ * Configures [GmsBarcodeScannerOptions] to scan QR codes with auto-zoom enabled
+ * and dispatches success, failure, or cancellation callbacks.
+ *
+ * @param context Current Android [Context].
+ * @param onSuccess Callback receiving the raw string value of the scanned QR code.
+ * @param onFailure Callback invoked when scanning encounters an exception.
+ * @param onCanceled Callback invoked when the user cancels the barcode scanner.
+ */
 private fun startQrCodeScanner(
     context: Context,
     onSuccess: (String?) -> Unit,
@@ -412,6 +457,9 @@ private fun startQrCodeScanner(
     }
 }
 
+/**
+ * Jetpack Compose Preview for [SetupScreenContent] in a pre-populated pairing state.
+ */
 @Preview(showBackground = true)
 @Composable
 fun SetupScreenContentPreview() {

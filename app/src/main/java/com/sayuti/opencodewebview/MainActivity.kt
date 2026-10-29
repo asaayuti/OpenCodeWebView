@@ -22,7 +22,22 @@ import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 import com.sayuti.opencodewebview.ui.webview.WebViewScreen
 import com.sayuti.opencodewebview.ui.webview.WebViewViewModel
 
+/**
+ * Main entry point for the Open Code WebView application.
+ *
+ * This activity manages the app's root navigation and view hierarchy, transitioning
+ * between the server setup screen and the main WebView screen based on server preferences
+ * and pairing state.
+ */
 class MainActivity : ComponentActivity() {
+
+    /**
+     * Called when the activity is starting. Initializes edge-to-edge display,
+     * sets up dependency repositories, and configures the Jetpack Compose UI content.
+     *
+     * @param savedInstanceState If the activity is being re-initialized after previously
+     * being shut down then this Bundle contains the data it most recently supplied.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

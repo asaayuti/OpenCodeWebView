@@ -19,6 +19,10 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * ViewModel responsible for managing the state of the WebView screen, including server URL preferences
+ * and active network connectivity monitoring.
+ */
 class WebViewViewModel : ViewModel {
 
     private val serverPreferencesRepository: ServerPreferencesRepository
@@ -26,13 +30,22 @@ class WebViewViewModel : ViewModel {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val _isLoading = MutableStateFlow(true)
+
+    /** Emits whether the ViewModel is currently in a loading state. */
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _isConnected = MutableStateFlow(true)
+
+    /** Emits whether the device currently has an active network connection. */
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
+    /** Emits the current configured base URL for the server, or null if not set. */
     val baseUrl: StateFlow<String?>
 
+    /**
+     * Constructs a [WebViewViewModel] with the provided [ServerPreferencesRepository] and initial connection state.
+     * Useful for testing or custom configurations.
+     */
     constructor(repository: ServerPreferencesRepository, initialConnected: Boolean = true) {
         this.serverPreferencesRepository = repository
         _isConnected.value = initialConnected
@@ -45,6 +58,10 @@ class WebViewViewModel : ViewModel {
             )
     }
 
+    /**
+     * Constructs a [WebViewViewModel] with the application context and [ServerPreferencesRepository].
+     * Automatically monitors network connectivity changes using [ConnectivityManager].
+     */
     constructor(application: Application, repository: ServerPreferencesRepository) {
         this.serverPreferencesRepository = repository
         _isConnected.value = OpenCodeUtils.isNetworkAvailable(application)
@@ -82,6 +99,11 @@ class WebViewViewModel : ViewModel {
         }
     }
 
+    /**
+     * Clears the current server base URL from preferences, allowing the user to select or configure a new server.
+     *
+     * @param onComplete Callback invoked when the server preference has been successfully cleared.
+     */
     fun changeServer(onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             serverPreferencesRepository.clearBaseUrl()
@@ -89,6 +111,9 @@ class WebViewViewModel : ViewModel {
         }
     }
 
+    /**
+     * Cleans up network callbacks when the ViewModel is cleared.
+     */
     override fun onCleared() {
         try {
             if (connectivityManager != null && networkCallback != null) {
@@ -98,14 +123,23 @@ class WebViewViewModel : ViewModel {
         }
     }
 
+    /**
+     * Factory for creating instances of [WebViewViewModel] with or without an [Application] context.
+     */
     class Factory : ViewModelProvider.Factory {
         private var application: Application? = null
         private var repository: ServerPreferencesRepository
 
+        /**
+         * Creates a [Factory] with only the [ServerPreferencesRepository].
+         */
         constructor(repository: ServerPreferencesRepository) {
             this.repository = repository
         }
 
+        /**
+         * Creates a [Factory] with an [Application] context and [ServerPreferencesRepository].
+         */
         constructor(application: Application, repository: ServerPreferencesRepository) {
             this.application = application
             this.repository = repository
