@@ -1,10 +1,13 @@
 package com.sayuti.opencodewebview.ui.webview
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -15,6 +18,7 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -88,6 +92,8 @@ fun WebViewScreen(
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var canGoBack by remember { mutableStateOf(false) }
     var pendingFilePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+    var pendingFileChooserParams by remember { mutableStateOf<WebChromeClient.FileChooserParams?>(null) }
+    var pendingPermissionRequest by remember { mutableStateOf<PermissionRequest?>(null) }
     var backPressedTime by remember { mutableStateOf(0L) }
     
     // Fullscreen custom view state for HTML5 video / fullscreen API
@@ -153,6 +159,80 @@ fun WebViewScreen(
 
         pendingFilePathCallback?.onReceiveValue(results)
         pendingFilePathCallback = null
+        pendingFileChooserParams = null
+    }
+
+    // Camera Permission Launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingPermissionRequest?.let { request ->
+                request.grant(request.resources)
+                pendingPermissionRequest = null
+            }
+            pendingFilePathCallback?.let { callback ->
+                val params = pendingFileChooserParams
+                val intent = try {
+                    params?.createIntent()
+                } catch (e: Exception) {
+                    null
+                }
+                val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                }
+                try {
+                    fileChooserLauncher.launch(finalIntent)
+                } catch (e: Exception) {
+                    callback.onReceiveValue(null)
+                    pendingFilePathCallback = null
+                    pendingFileChooserParams = null
+                }
+            }
+        } else {
+            Toast.makeText(toastContext, "Camera permission is required to access the camera", Toast.LENGTH_SHORT).show()
+            pendingPermissionRequest?.deny()
+            pendingPermissionRequest = null
+            pendingFilePathCallback?.onReceiveValue(null)
+            pendingFilePathCallback = null
+            pendingFileChooserParams = null
+        }
+    }
+
+    val launchFileChooserOrRequestPermission: (ValueCallback<Array<Uri>>?, WebChromeClient.FileChooserParams?) -> Boolean = { callback, params ->
+        pendingFilePathCallback?.onReceiveValue(null)
+        pendingFilePathCallback = callback
+        pendingFileChooserParams = params
+
+        val hasCameraPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasCameraPermission) {
+            val intent = try {
+                params?.createIntent()
+            } catch (e: Exception) {
+                null
+            }
+            val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            try {
+                fileChooserLauncher.launch(finalIntent)
+                true
+            } catch (e: Exception) {
+                pendingFilePathCallback?.onReceiveValue(null)
+                pendingFilePathCallback = null
+                pendingFileChooserParams = null
+                false
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            true
+        }
     }
 
     // Back Button Handler
@@ -224,8 +304,9 @@ fun WebViewScreen(
                             javaScriptEnabled = true
                             domStorageEnabled = true
                             cacheMode = WebSettings.LOAD_DEFAULT
-                            allowFileAccess = false
-                            allowContentAccess = false
+                            allowFileAccess = true
+                            allowContentAccess = true
+                            mediaPlaybackRequiresUserGesture = false
                         }
 
                         webChromeClient = object : WebChromeClient() {
@@ -233,6 +314,35 @@ fun WebViewScreen(
                                 super.onReceivedTitle(view, title)
                                 if (!title.isNullOrBlank()) {
                                     pageTitle = title
+                                }
+                            }
+
+                            override fun onPermissionRequest(request: PermissionRequest?) {
+                                if (request == null) return
+                                val resources = request.resources
+                                val needsCameraOrAudio = resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE) ||
+                                        resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
+
+                                if (needsCameraOrAudio) {
+                                    val hasCameraPermission = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.CAMERA
+                                    ) == PackageManager.PERMISSION_GRANTED
+
+                                    val hasAudioPermission = !resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) ||
+                                            ContextCompat.checkSelfPermission(
+                                                context,
+                                                Manifest.permission.RECORD_AUDIO
+                                            ) == PackageManager.PERMISSION_GRANTED
+
+                                    if (hasCameraPermission && hasAudioPermission) {
+                                        request.grant(resources)
+                                    } else {
+                                        pendingPermissionRequest = request
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                    }
+                                } else {
+                                    request.grant(resources)
                                 }
                             }
 
@@ -269,29 +379,7 @@ fun WebViewScreen(
                                 filePathCallback: ValueCallback<Array<Uri>>?,
                                 fileChooserParams: FileChooserParams?
                             ): Boolean {
-                                // Reset any previously pending callback
-                                pendingFilePathCallback?.onReceiveValue(null)
-                                pendingFilePathCallback = filePathCallback
-
-                                val intent = try {
-                                    fileChooserParams?.createIntent()
-                                } catch (e: Exception) {
-                                    null
-                                }
-
-                                val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                                    addCategory(Intent.CATEGORY_OPENABLE)
-                                    type = "*/*"
-                                }
-
-                                return try {
-                                    fileChooserLauncher.launch(finalIntent)
-                                    true
-                                } catch (e: Exception) {
-                                    pendingFilePathCallback?.onReceiveValue(null)
-                                    pendingFilePathCallback = null
-                                    false
-                                }
+                                return launchFileChooserOrRequestPermission(filePathCallback, fileChooserParams)
                             }
                         }
 
