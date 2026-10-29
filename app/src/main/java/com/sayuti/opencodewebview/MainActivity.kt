@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             OpenCodeWebViewTheme {
                 val webViewViewModel: WebViewViewModel = viewModel(
-                    factory = WebViewViewModel.Factory(repository)
+                    factory = WebViewViewModel.Factory(application, repository)
                 )
                 val baseUrl by webViewViewModel.baseUrl.collectAsStateWithLifecycle()
                 val isLoading by webViewViewModel.isLoading.collectAsStateWithLifecycle()
@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
                                     currentPairUrl = null
                                     webViewViewModel.changeServer()
                                 },
+                                webViewViewModel = webViewViewModel,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

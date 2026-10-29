@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -59,6 +60,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 import com.sayuti.opencodewebview.util.OpenCodeUtils
@@ -70,9 +72,17 @@ fun WebViewScreen(
     baseUrl: String,
     onChangeServer: () -> Unit,
     modifier: Modifier = Modifier,
-    doubleBackToExitEnabled: Boolean = true
+    doubleBackToExitEnabled: Boolean = true,
+    webViewViewModel: WebViewViewModel? = null
 ) {
     val context = LocalContext.current
+    val isPreview = LocalInspectionMode.current
+    
+    val viewModel = webViewViewModel ?: androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = WebViewViewModel.Factory(context.applicationContext as android.app.Application, com.sayuti.opencodewebview.data.repository.ServerPreferencesRepository(context))
+    )
+    val isConnected by viewModel.isConnected.collectAsStateWithLifecycle()
+
     var isRefreshing by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorState by remember { mutableStateOf<WebViewError?>(null) }
@@ -88,8 +98,27 @@ fun WebViewScreen(
     var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
 
     val toastContext = context.applicationContext
-    val isPreview = LocalInspectionMode.current
     val activity = context as? Activity
+
+    // Real-time network monitoring effect
+    if (!isPreview) {
+        androidx.compose.runtime.LaunchedEffect(isConnected) {
+            if (!isConnected) {
+                if (errorState == null) {
+                    errorState = WebViewError(
+                        message = "No internet connection. Please check your network settings and try again.",
+                        isNetworkError = true
+                    )
+                }
+            } else {
+                if (errorState?.isNetworkError == true) {
+                    errorState = null
+                    isRefreshing = true
+                    webViewRef?.reload()
+                }
+            }
+        }
+    }
 
     // Ensure cookies are flushed to disk on lifecycle events (e.g. app paused or backgrounded)
     if (!isPreview) {
@@ -323,11 +352,27 @@ fun WebViewScreen(
                                     if (request?.isForMainFrame == true) {
                                         isRefreshing = false
                                         isLoading = false
+                                        val errorCode = error?.errorCode ?: 0
                                         val description = error?.description?.toString() ?: "Failed to load page"
+
+                                        val isNetworkDown = !OpenCodeUtils.isNetworkAvailable(ctx) ||
+                                                errorCode == WebViewClient.ERROR_HOST_LOOKUP ||
+                                                errorCode == WebViewClient.ERROR_CONNECT ||
+                                                errorCode == WebViewClient.ERROR_TIMEOUT ||
+                                                errorCode == WebViewClient.ERROR_IO ||
+                                                errorCode == WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
+
+                                        val message = if (isNetworkDown) {
+                                            "No internet connection. Please check your network settings and try again."
+                                        } else {
+                                            description
+                                        }
+
                                         errorState = WebViewError(
-                                            message = description,
-                                            statusCode = error?.errorCode,
-                                            isAuthError = false
+                                            message = message,
+                                            statusCode = errorCode,
+                                            isAuthError = false,
+                                            isNetworkError = isNetworkDown
                                         )
                                     }
                                 }
@@ -358,16 +403,32 @@ fun WebViewScreen(
                                 }
                             }
 
-                            loadUrl(initialUrl)
+                            if (!OpenCodeUtils.isNetworkAvailable(ctx)) {
+                                errorState = WebViewError(
+                                    message = "No internet connection. Please check your network settings and try again.",
+                                    isNetworkError = true
+                                )
+                            } else {
+                                loadUrl(initialUrl)
+                            }
                             webViewRef = this
                         }
 
                         addView(webView)
 
                         setOnRefreshListener {
-                            isRefreshing = true
-                            errorState = null
-                            webView.reload()
+                            if (!OpenCodeUtils.isNetworkAvailable(ctx)) {
+                                isRefreshing = false
+                                Toast.makeText(ctx, "No internet connection", Toast.LENGTH_SHORT).show()
+                                errorState = WebViewError(
+                                    message = "No internet connection. Please check your network settings and try again.",
+                                    isNetworkError = true
+                                )
+                            } else {
+                                isRefreshing = true
+                                errorState = null
+                                webView.reload()
+                            }
                         }
                     }
                 },
@@ -387,9 +448,13 @@ fun WebViewScreen(
             ErrorScreenOverlay(
                 error = currentError,
                 onRetry = {
-                    errorState = null
-                    isRefreshing = true
-                    webViewRef?.reload()
+                    if (currentError.isNetworkError && !OpenCodeUtils.isNetworkAvailable(context)) {
+                        Toast.makeText(context, "Still no internet connection", Toast.LENGTH_SHORT).show()
+                    } else {
+                        errorState = null
+                        isRefreshing = true
+                        webViewRef?.reload()
+                    }
                 },
                 onRePair = {
                     errorState = null
@@ -482,7 +547,7 @@ fun ErrorScreenOverlay(
                 verticalArrangement = Arrangement.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.ErrorOutline,
+                    imageVector = if (error.isNetworkError) Icons.Rounded.WifiOff else Icons.Rounded.ErrorOutline,
                     contentDescription = "Error",
                     modifier = Modifier.size(64.dp),
                     tint = MaterialTheme.colorScheme.error
@@ -491,7 +556,11 @@ fun ErrorScreenOverlay(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = if (error.isAuthError) "Authentication Required" else "Page Load Error",
+                    text = when {
+                        error.isAuthError -> "Authentication Required"
+                        error.isNetworkError -> "No Internet Connection"
+                        else -> "Page Load Error"
+                    },
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
@@ -512,11 +581,13 @@ fun ErrorScreenOverlay(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = onRePair,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Re-pair")
+                    if (!error.isNetworkError) {
+                        OutlinedButton(
+                            onClick = onRePair,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Re-pair")
+                        }
                     }
 
                     Button(
