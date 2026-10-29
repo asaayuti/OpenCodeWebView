@@ -49,8 +49,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -112,8 +114,8 @@ fun SetupScreenContent(
     onScanQrClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    @Suppress("DEPRECATION")
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -332,8 +334,10 @@ fun SetupScreenContent(
                                     }
                                 } else {
                                     IconButton(onClick = {
-                                        clipboardManager.getText()?.text?.let { text ->
-                                            onInputTextChanged(text)
+                                        coroutineScope.launch {
+                                            clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let { text ->
+                                                onInputTextChanged(text)
+                                            }
                                         }
                                     }) {
                                         Icon(
