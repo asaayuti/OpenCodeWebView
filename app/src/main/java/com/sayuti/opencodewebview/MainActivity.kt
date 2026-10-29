@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
                                     currentPairUrl = null
                                     webViewViewModel.changeServer()
                                 },
-                                modifier = Modifier.padding(innerPadding)
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
