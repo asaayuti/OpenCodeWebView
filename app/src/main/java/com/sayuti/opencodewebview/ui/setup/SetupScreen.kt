@@ -1,8 +1,6 @@
 package com.sayuti.opencodewebview.ui.setup
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,15 +21,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import com.sayuti.opencodewebview.util.OpenCodeUtils
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,9 +46,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -71,7 +62,6 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScreen(
     viewModel: SetupViewModel,
@@ -122,9 +112,8 @@ fun SetupScreenContent(
     onScanQrClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
-    var menuExpanded by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -137,44 +126,8 @@ fun SetupScreenContent(
                         fontWeight = FontWeight.SemiBold
                     )
                 },
-                actions = {
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Menu options"
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("GitHub") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    try {
-                                        val intent = Intent(
-                                            Intent.ACTION_VIEW,
-                                            Uri.parse("https://github.com/asaayuti/OpenCodeWebView")
-                                        )
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        OpenCodeUtils.logDebug(OpenCodeUtils.TAG, "Failed to open GitHub: ${e.message}")
-                                    }
-                                }
-                            )
-                        }
-                    }
-                },
                 windowInsets = WindowInsets(top = 8.dp),
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
