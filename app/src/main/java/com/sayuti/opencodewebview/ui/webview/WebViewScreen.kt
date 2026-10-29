@@ -34,13 +34,11 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -61,11 +59,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 import com.sayuti.opencodewebview.util.OpenCodeUtils
 import com.sayuti.opencodewebview.util.WebViewUrlUtil
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebViewScreen(
     initialUrl: String,
@@ -80,6 +78,7 @@ fun WebViewScreen(
     var errorState by remember { mutableStateOf<WebViewError?>(null) }
     var pageTitle by remember { mutableStateOf("") }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var swipeRefreshLayoutRef by remember { mutableStateOf<SwipeRefreshLayout?>(null) }
     var canGoBack by remember { mutableStateOf(false) }
     var pendingFilePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
     var backPressedTime by remember { mutableStateOf(0L) }
@@ -167,33 +166,31 @@ fun WebViewScreen(
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = {
-                isRefreshing = true
-                errorState = null
-                webViewRef?.reload()
-            },
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (isPreview) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "WebView Preview\n$initialUrl",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
+        if (isPreview) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "WebView Preview\n$initialUrl",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            AndroidView(
+                factory = { ctx ->
+                    SwipeRefreshLayout(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        swipeRefreshLayoutRef = this
+
+                        val webView = WebView(ctx).apply {
                             layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -364,14 +361,25 @@ fun WebViewScreen(
                             loadUrl(initialUrl)
                             webViewRef = this
                         }
-                    },
-                    update = { webView ->
-                        webViewRef = webView
-                        canGoBack = webView.canGoBack()
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+
+                        addView(webView)
+
+                        setOnRefreshListener {
+                            isRefreshing = true
+                            errorState = null
+                            webView.reload()
+                        }
+                    }
+                },
+                update = { swipeRefreshLayout ->
+                    swipeRefreshLayoutRef = swipeRefreshLayout
+                    swipeRefreshLayout.isRefreshing = isRefreshing
+                    webViewRef?.let {
+                        canGoBack = it.canGoBack()
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
         // Error Overlay Screen
