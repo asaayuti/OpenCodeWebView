@@ -1,6 +1,7 @@
 package com.sayuti.opencodewebview.ui.webview
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -19,6 +20,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -47,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +72,7 @@ import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 import com.sayuti.opencodewebview.util.OpenCodeUtils
 import com.sayuti.opencodewebview.util.WebViewUrlUtil
 
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun WebViewScreen(
     initialUrl: String,
@@ -81,9 +85,16 @@ fun WebViewScreen(
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
     
-    val viewModel = webViewViewModel ?: androidx.lifecycle.viewmodel.compose.viewModel(
-        factory = WebViewViewModel.Factory(context.applicationContext as android.app.Application, com.sayuti.opencodewebview.data.repository.ServerPreferencesRepository(context))
-    )
+    val application = context.applicationContext as? android.app.Application
+    val viewModel = webViewViewModel ?: if (application != null) {
+        androidx.lifecycle.viewmodel.compose.viewModel(
+            factory = WebViewViewModel.Factory(application, com.sayuti.opencodewebview.data.repository.ServerPreferencesRepository(context))
+        )
+    } else {
+        androidx.lifecycle.viewmodel.compose.viewModel(
+            factory = WebViewViewModel.Factory(com.sayuti.opencodewebview.data.repository.ServerPreferencesRepository(context))
+        )
+    }
     val isConnected by viewModel.isConnected.collectAsStateWithLifecycle()
 
     var isLoading by remember { mutableStateOf(false) }
@@ -94,7 +105,7 @@ fun WebViewScreen(
     var pendingFilePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
     var pendingFileChooserParams by remember { mutableStateOf<WebChromeClient.FileChooserParams?>(null) }
     var pendingPermissionRequest by remember { mutableStateOf<PermissionRequest?>(null) }
-    var backPressedTime by remember { mutableStateOf(0L) }
+    var backPressedTime by remember { mutableLongStateOf(0L) }
     
     // Fullscreen custom view state for HTML5 video / fullscreen API
     var customView by remember { mutableStateOf<android.view.View?>(null) }
@@ -153,7 +164,7 @@ fun WebViewScreen(
             if (clipData != null && clipData.itemCount > 0) {
                 results = Array(clipData.itemCount) { i -> clipData.getItemAt(i).uri }
             } else if (dataString != null) {
-                results = arrayOf(Uri.parse(dataString))
+                results = arrayOf(dataString.toUri())
             }
         }
 
@@ -175,7 +186,7 @@ fun WebViewScreen(
                 val params = pendingFileChooserParams
                 val intent = try {
                     params?.createIntent()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     null
                 }
                 val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
@@ -184,7 +195,7 @@ fun WebViewScreen(
                 }
                 try {
                     fileChooserLauncher.launch(finalIntent)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     callback.onReceiveValue(null)
                     pendingFilePathCallback = null
                     pendingFileChooserParams = null
@@ -213,7 +224,7 @@ fun WebViewScreen(
         if (hasCameraPermission) {
             val intent = try {
                 params?.createIntent()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             }
             val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
@@ -223,7 +234,7 @@ fun WebViewScreen(
             try {
                 fileChooserLauncher.launch(finalIntent)
                 true
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 pendingFilePathCallback?.onReceiveValue(null)
                 pendingFilePathCallback = null
                 pendingFileChooserParams = null
@@ -242,7 +253,7 @@ fun WebViewScreen(
             customView = null
             customViewCallback = null
             activity?.window?.decorView?.let { decorView ->
-                WindowCompat.getInsetsController(activity.window, decorView)?.show(
+                WindowCompat.getInsetsController(activity.window, decorView).show(
                     WindowInsetsCompat.Type.systemBars()
                 )
             }
@@ -357,7 +368,7 @@ fun WebViewScreen(
                                 customView = view
                                 customViewCallback = callback
                                 activity?.window?.decorView?.let { decorView ->
-                                    WindowCompat.getInsetsController(activity.window, decorView)?.hide(
+                                    WindowCompat.getInsetsController(activity.window, decorView).hide(
                                         WindowInsetsCompat.Type.systemBars()
                                     )
                                 }
@@ -365,7 +376,7 @@ fun WebViewScreen(
 
                             override fun onHideCustomView() {
                                 activity?.window?.decorView?.let { decorView ->
-                                    WindowCompat.getInsetsController(activity.window, decorView)?.show(
+                                    WindowCompat.getInsetsController(activity.window, decorView).show(
                                         WindowInsetsCompat.Type.systemBars()
                                     )
                                 }
@@ -384,12 +395,20 @@ fun WebViewScreen(
                         }
 
                         webViewClient = object : WebViewClient() {
+                            override fun onRenderProcessGone(
+                                view: WebView?,
+                                detail: android.webkit.RenderProcessGoneDetail?
+                            ): Boolean {
+                                return true
+                            }
+
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 isLoading = false
                                 canGoBack = view?.canGoBack() == true
-                                if (!view?.title.isNullOrBlank()) {
-                                    pageTitle = view?.title ?: ""
+                                val title = view?.title
+                                if (!title.isNullOrBlank()) {
+                                    pageTitle = title
                                 }
                                 CookieManager.getInstance().flush()
                             }
@@ -415,8 +434,8 @@ fun WebViewScreen(
 
                             @Deprecated("Deprecated in Java")
                             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                                if (url == null) return false
-                                return handleUrlOverride(url, baseUrl, ctx)
+                                val requestUrl = url ?: return false
+                                return handleUrlOverride(requestUrl, baseUrl, ctx)
                             }
 
                             override fun onReceivedError(
@@ -431,11 +450,11 @@ fun WebViewScreen(
                                     val description = error?.description?.toString() ?: "Failed to load page"
 
                                     val isNetworkDown = !OpenCodeUtils.isNetworkAvailable(ctx) ||
-                                            errorCode == WebViewClient.ERROR_HOST_LOOKUP ||
-                                            errorCode == WebViewClient.ERROR_CONNECT ||
-                                            errorCode == WebViewClient.ERROR_TIMEOUT ||
-                                            errorCode == WebViewClient.ERROR_IO ||
-                                            errorCode == WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
+                                            errorCode == ERROR_HOST_LOOKUP ||
+                                            errorCode == ERROR_CONNECT ||
+                                            errorCode == ERROR_TIMEOUT ||
+                                            errorCode == ERROR_IO ||
+                                            errorCode == ERROR_FAILED_SSL_HANDSHAKE
 
                                     val message = if (isNetworkDown) {
                                         "No internet connection. Please check your network settings and try again."
@@ -561,7 +580,7 @@ private fun handleUrlOverride(url: String, baseUrl: String, context: android.con
 
     // Host differs or external link -> open in system browser
     return try {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
         context.startActivity(intent)
         true
     } catch (e: Exception) {
