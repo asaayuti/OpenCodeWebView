@@ -61,7 +61,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.sayuti.opencodewebview.ui.theme.OpenCodeWebViewTheme
 import com.sayuti.opencodewebview.util.OpenCodeUtils
 import com.sayuti.opencodewebview.util.WebViewUrlUtil
@@ -83,12 +82,10 @@ fun WebViewScreen(
     )
     val isConnected by viewModel.isConnected.collectAsStateWithLifecycle()
 
-    var isRefreshing by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorState by remember { mutableStateOf<WebViewError?>(null) }
     var pageTitle by remember { mutableStateOf("") }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
-    var swipeRefreshLayoutRef by remember { mutableStateOf<SwipeRefreshLayout?>(null) }
     var canGoBack by remember { mutableStateOf(false) }
     var pendingFilePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
     var backPressedTime by remember { mutableStateOf(0L) }
@@ -113,7 +110,6 @@ fun WebViewScreen(
             } else {
                 if (errorState?.isNetworkError == true) {
                     errorState = null
-                    isRefreshing = true
                     webViewRef?.reload()
                 }
             }
@@ -212,232 +208,201 @@ fun WebViewScreen(
         } else {
             AndroidView(
                 factory = { ctx ->
-                    SwipeRefreshLayout(ctx).apply {
+                    WebView(ctx).apply {
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
-                        swipeRefreshLayoutRef = this
 
-                        val webView = WebView(ctx).apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
+                        // Configure CookieManager for persistent session storage
+                        val cookieManager = CookieManager.getInstance()
+                        cookieManager.setAcceptCookie(true)
+                        cookieManager.setAcceptThirdPartyCookies(this, true)
 
-                            // Configure CookieManager for persistent session storage
-                            val cookieManager = CookieManager.getInstance()
-                            cookieManager.setAcceptCookie(true)
-                            cookieManager.setAcceptThirdPartyCookies(this, true)
+                        // WebSettings configuration
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            cacheMode = WebSettings.LOAD_DEFAULT
+                            allowFileAccess = false
+                            allowContentAccess = false
+                        }
 
-                            // WebSettings configuration
-                            settings.apply {
-                                javaScriptEnabled = true
-                                domStorageEnabled = true
-                                cacheMode = WebSettings.LOAD_DEFAULT
-                                allowFileAccess = false
-                                allowContentAccess = false
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onReceivedTitle(view: WebView?, title: String?) {
+                                super.onReceivedTitle(view, title)
+                                if (!title.isNullOrBlank()) {
+                                    pageTitle = title
+                                }
                             }
 
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onReceivedTitle(view: WebView?, title: String?) {
-                                    super.onReceivedTitle(view, title)
-                                    if (!title.isNullOrBlank()) {
-                                        pageTitle = title
-                                    }
+                            override fun onShowCustomView(
+                                view: android.view.View?,
+                                callback: CustomViewCallback?
+                            ) {
+                                if (customView != null) {
+                                    callback?.onCustomViewHidden()
+                                    return
+                                }
+                                customView = view
+                                customViewCallback = callback
+                                activity?.window?.decorView?.let { decorView ->
+                                    WindowCompat.getInsetsController(activity.window, decorView)?.hide(
+                                        WindowInsetsCompat.Type.systemBars()
+                                    )
+                                }
+                            }
+
+                            override fun onHideCustomView() {
+                                activity?.window?.decorView?.let { decorView ->
+                                    WindowCompat.getInsetsController(activity.window, decorView)?.show(
+                                        WindowInsetsCompat.Type.systemBars()
+                                    )
+                                }
+                                customViewCallback?.onCustomViewHidden()
+                                customView = null
+                                customViewCallback = null
+                            }
+
+                            override fun onShowFileChooser(
+                                webView: WebView?,
+                                filePathCallback: ValueCallback<Array<Uri>>?,
+                                fileChooserParams: FileChooserParams?
+                            ): Boolean {
+                                // Reset any previously pending callback
+                                pendingFilePathCallback?.onReceiveValue(null)
+                                pendingFilePathCallback = filePathCallback
+
+                                val intent = try {
+                                    fileChooserParams?.createIntent()
+                                } catch (e: Exception) {
+                                    null
                                 }
 
-                                override fun onShowCustomView(
-                                    view: android.view.View?,
-                                    callback: CustomViewCallback?
-                                ) {
-                                    if (customView != null) {
-                                        callback?.onCustomViewHidden()
-                                        return
-                                    }
-                                    customView = view
-                                    customViewCallback = callback
-                                    activity?.window?.decorView?.let { decorView ->
-                                        WindowCompat.getInsetsController(activity.window, decorView)?.hide(
-                                            WindowInsetsCompat.Type.systemBars()
-                                        )
-                                    }
+                                val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "*/*"
                                 }
 
-                                override fun onHideCustomView() {
-                                    activity?.window?.decorView?.let { decorView ->
-                                        WindowCompat.getInsetsController(activity.window, decorView)?.show(
-                                            WindowInsetsCompat.Type.systemBars()
-                                        )
-                                    }
-                                    customViewCallback?.onCustomViewHidden()
-                                    customView = null
-                                    customViewCallback = null
-                                }
-
-                                override fun onShowFileChooser(
-                                    webView: WebView?,
-                                    filePathCallback: ValueCallback<Array<Uri>>?,
-                                    fileChooserParams: FileChooserParams?
-                                ): Boolean {
-                                    // Reset any previously pending callback
+                                return try {
+                                    fileChooserLauncher.launch(finalIntent)
+                                    true
+                                } catch (e: Exception) {
                                     pendingFilePathCallback?.onReceiveValue(null)
-                                    pendingFilePathCallback = filePathCallback
+                                    pendingFilePathCallback = null
+                                    false
+                                }
+                            }
+                        }
 
-                                    val intent = try {
-                                        fileChooserParams?.createIntent()
-                                    } catch (e: Exception) {
-                                        null
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                isLoading = false
+                                canGoBack = view?.canGoBack() == true
+                                if (!view?.title.isNullOrBlank()) {
+                                    pageTitle = view?.title ?: ""
+                                }
+                                CookieManager.getInstance().flush()
+                            }
+
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                isLoading = true
+                                canGoBack = view?.canGoBack() == true
+                            }
+
+                            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                                super.doUpdateVisitedHistory(view, url, isReload)
+                                canGoBack = view?.canGoBack() == true
+                            }
+
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): Boolean {
+                                val requestUrl = request?.url?.toString() ?: return false
+                                return handleUrlOverride(requestUrl, baseUrl, ctx)
+                            }
+
+                            @Deprecated("Deprecated in Java")
+                            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                if (url == null) return false
+                                return handleUrlOverride(url, baseUrl, ctx)
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: WebResourceError?
+                            ) {
+                                super.onReceivedError(view, request, error)
+                                if (request?.isForMainFrame == true) {
+                                    isLoading = false
+                                    val errorCode = error?.errorCode ?: 0
+                                    val description = error?.description?.toString() ?: "Failed to load page"
+
+                                    val isNetworkDown = !OpenCodeUtils.isNetworkAvailable(ctx) ||
+                                            errorCode == WebViewClient.ERROR_HOST_LOOKUP ||
+                                            errorCode == WebViewClient.ERROR_CONNECT ||
+                                            errorCode == WebViewClient.ERROR_TIMEOUT ||
+                                            errorCode == WebViewClient.ERROR_IO ||
+                                            errorCode == WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
+
+                                    val message = if (isNetworkDown) {
+                                        "No internet connection. Please check your network settings and try again."
+                                    } else {
+                                        description
                                     }
 
-                                    val finalIntent = intent ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                                        addCategory(Intent.CATEGORY_OPENABLE)
-                                        type = "*/*"
-                                    }
-
-                                    return try {
-                                        fileChooserLauncher.launch(finalIntent)
-                                        true
-                                    } catch (e: Exception) {
-                                        pendingFilePathCallback?.onReceiveValue(null)
-                                        pendingFilePathCallback = null
-                                        false
-                                    }
+                                    errorState = WebViewError(
+                                        message = message,
+                                        statusCode = errorCode,
+                                        isAuthError = false,
+                                        isNetworkError = isNetworkDown
+                                    )
                                 }
                             }
 
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    isRefreshing = false
-                                    isLoading = false
-                                    canGoBack = view?.canGoBack() == true
-                                    if (!view?.title.isNullOrBlank()) {
-                                        pageTitle = view?.title ?: ""
-                                    }
-                                    CookieManager.getInstance().flush()
-                                }
-
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    isLoading = true
-                                    canGoBack = view?.canGoBack() == true
-                                }
-
-                                override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                                    super.doUpdateVisitedHistory(view, url, isReload)
-                                    canGoBack = view?.canGoBack() == true
-                                }
-
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView?,
-                                    request: WebResourceRequest?
-                                ): Boolean {
-                                    val requestUrl = request?.url?.toString() ?: return false
-                                    return handleUrlOverride(requestUrl, baseUrl, ctx)
-                                }
-
-                                @Deprecated("Deprecated in Java")
-                                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                                    if (url == null) return false
-                                    return handleUrlOverride(url, baseUrl, ctx)
-                                }
-
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    error: WebResourceError?
-                                ) {
-                                    super.onReceivedError(view, request, error)
-                                    if (request?.isForMainFrame == true) {
-                                        isRefreshing = false
+                            override fun onReceivedHttpError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                errorResponse: WebResourceResponse?
+                            ) {
+                                super.onReceivedHttpError(view, request, errorResponse)
+                                if (request?.isForMainFrame == true) {
+                                    val statusCode = errorResponse?.statusCode ?: 0
+                                    if (statusCode == 401 || statusCode == 403) {
                                         isLoading = false
-                                        val errorCode = error?.errorCode ?: 0
-                                        val description = error?.description?.toString() ?: "Failed to load page"
-
-                                        val isNetworkDown = !OpenCodeUtils.isNetworkAvailable(ctx) ||
-                                                errorCode == WebViewClient.ERROR_HOST_LOOKUP ||
-                                                errorCode == WebViewClient.ERROR_CONNECT ||
-                                                errorCode == WebViewClient.ERROR_TIMEOUT ||
-                                                errorCode == WebViewClient.ERROR_IO ||
-                                                errorCode == WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
-
-                                        val message = if (isNetworkDown) {
-                                            "No internet connection. Please check your network settings and try again."
-                                        } else {
-                                            description
+                                        val message = when (statusCode) {
+                                            401 -> "Authentication required (HTTP 401). Please re-pair your server."
+                                            403 -> "Access forbidden (HTTP 403). Please re-pair your server."
+                                            else -> "HTTP Error $statusCode"
                                         }
-
                                         errorState = WebViewError(
                                             message = message,
-                                            statusCode = errorCode,
-                                            isAuthError = false,
-                                            isNetworkError = isNetworkDown
+                                            statusCode = statusCode,
+                                            isAuthError = true
                                         )
                                     }
                                 }
-
-                                override fun onReceivedHttpError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    errorResponse: WebResourceResponse?
-                                ) {
-                                    super.onReceivedHttpError(view, request, errorResponse)
-                                    if (request?.isForMainFrame == true) {
-                                        val statusCode = errorResponse?.statusCode ?: 0
-                                        if (statusCode == 401 || statusCode == 403) {
-                                            isRefreshing = false
-                                            isLoading = false
-                                            val message = when (statusCode) {
-                                                401 -> "Authentication required (HTTP 401). Please re-pair your server."
-                                                403 -> "Access forbidden (HTTP 403). Please re-pair your server."
-                                                else -> "HTTP Error $statusCode"
-                                            }
-                                            errorState = WebViewError(
-                                                message = message,
-                                                statusCode = statusCode,
-                                                isAuthError = true
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (!OpenCodeUtils.isNetworkAvailable(ctx)) {
-                                errorState = WebViewError(
-                                    message = "No internet connection. Please check your network settings and try again.",
-                                    isNetworkError = true
-                                )
-                            } else {
-                                loadUrl(initialUrl)
-                            }
-                            webViewRef = this
-                        }
-
-                        addView(webView)
-
-                        setOnRefreshListener {
-                            if (!OpenCodeUtils.isNetworkAvailable(ctx)) {
-                                isRefreshing = false
-                                Toast.makeText(ctx, "No internet connection", Toast.LENGTH_SHORT).show()
-                                errorState = WebViewError(
-                                    message = "No internet connection. Please check your network settings and try again.",
-                                    isNetworkError = true
-                                )
-                            } else {
-                                isRefreshing = true
-                                errorState = null
-                                webView.reload()
                             }
                         }
+
+                        if (!OpenCodeUtils.isNetworkAvailable(ctx)) {
+                            errorState = WebViewError(
+                                message = "No internet connection. Please check your network settings and try again.",
+                                isNetworkError = true
+                            )
+                        } else {
+                            loadUrl(initialUrl)
+                        }
+                        webViewRef = this
                     }
                 },
-                update = { swipeRefreshLayout ->
-                    swipeRefreshLayoutRef = swipeRefreshLayout
-                    swipeRefreshLayout.isRefreshing = isRefreshing
-                    webViewRef?.let {
-                        canGoBack = it.canGoBack()
-                    }
+                update = { webView ->
+                    webViewRef = webView
+                    canGoBack = webView.canGoBack()
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -452,7 +417,6 @@ fun WebViewScreen(
                         Toast.makeText(context, "Still no internet connection", Toast.LENGTH_SHORT).show()
                     } else {
                         errorState = null
-                        isRefreshing = true
                         webViewRef?.reload()
                     }
                 },
